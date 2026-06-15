@@ -2,6 +2,8 @@
 
 A floating YouTube mini-player that sits in the bottom-right corner of the screen. Supports single videos and playlists with an interactive sidebar.
 
+> **[Live Demo](https://ayushdocs.github.io/yt-miniplayer/)**
+
 **Note:** This is a learning project — built to practice React, API integration, and state management. Not intended as a practical replacement for YouTube's own interface.
 
 ## Setup
