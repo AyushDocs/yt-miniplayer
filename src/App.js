@@ -3,19 +3,64 @@ import {Fragment, useEffect, useState} from 'react';
 import InfiniteScroll from 'react-infinite-scroll-component';
 import './App.css';
 
-const App = ({id, isPlaylist, width, height}) => {
+const extractId = (url) => {
+	const trimmed = url.trim();
+	if (!trimmed) return null;
+
+	if (!trimmed.includes('youtube.com') && !trimmed.includes('youtu.be') && !trimmed.includes('://')) {
+		if (trimmed.startsWith('PL') || trimmed.startsWith('UU') || trimmed.startsWith('OL') || trimmed.startsWith('RD')) {
+			return {id: trimmed, isPlaylist: true};
+		}
+		return {id: trimmed, isPlaylist: false};
+	}
+
+	try {
+		const urlObj = new URL(trimmed);
+		const listParam = urlObj.searchParams.get('list');
+		if (listParam) return {id: listParam, isPlaylist: true};
+		const vParam = urlObj.searchParams.get('v');
+		if (vParam) return {id: vParam, isPlaylist: false};
+		if (urlObj.hostname === 'youtu.be') {
+			const videoId = urlObj.pathname.slice(1).split('/')[0];
+			if (videoId) return {id: videoId, isPlaylist: false};
+		}
+	} catch {
+		return null;
+	}
+
+	return null;
+};
+
+const App = ({width, height}) => {
+	const [entry, setEntry] = useState(null);
+	const [urlInput, setUrlInput] = useState('');
+	const [parseError, setParseError] = useState(null);
 	const [offset, setOffset] = useState(0);
 	const [data, setData] = useState(null);
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState(null);
 
+	const handleSubmit = (e) => {
+		e.preventDefault();
+		setParseError(null);
+		const result = extractId(urlInput);
+		if (!result) {
+			setParseError('Invalid YouTube URL or ID');
+			return;
+		}
+		setOffset(0);
+		setData(null);
+		setError(null);
+		setEntry(result);
+	};
+
 	useEffect(() => {
-		if (!process.env.REACT_APP_API_KEY || !isPlaylist) return;
+		if (!entry?.isPlaylist || !process.env.REACT_APP_API_KEY) return;
 		const fetchData = async () => {
 			setLoading(true);
 			setError(null);
 			try {
-				const res = await axios.get(`https://youtube.googleapis.com/youtube/v3/playlistItems?part=snippet%2CcontentDetails&playlistId=${id}&key=${process.env.REACT_APP_API_KEY}&maxResults=10`);
+				const res = await axios.get(`https://youtube.googleapis.com/youtube/v3/playlistItems?part=snippet%2CcontentDetails&playlistId=${entry.id}&key=${process.env.REACT_APP_API_KEY}&maxResults=10`);
 				setData(res.data);
 			} catch (err) {
 				setError(err.message);
@@ -24,45 +69,46 @@ const App = ({id, isPlaylist, width, height}) => {
 			}
 		};
 		fetchData();
-	}, [id, isPlaylist]);
+	}, [entry]);
 
 	const getMoreData = async () => {
-		if (!process.env.REACT_APP_API_KEY || !isPlaylist || !data?.nextPageToken) return;
+		if (!entry?.isPlaylist || !data?.nextPageToken) return;
 		try {
-			const res = await axios.get(`https://youtube.googleapis.com/youtube/v3/playlistItems?part=snippet%2CcontentDetails&playlistId=${id}&key=${process.env.REACT_APP_API_KEY}&maxResults=10&pageToken=${data.nextPageToken}`);
+			const res = await axios.get(`https://youtube.googleapis.com/youtube/v3/playlistItems?part=snippet%2CcontentDetails&playlistId=${entry.id}&key=${process.env.REACT_APP_API_KEY}&maxResults=10&pageToken=${data.nextPageToken}`);
 			setData({...data, items: data.items.concat(res.data.items)});
 		} catch (err) {
 			setError(err.message);
 		}
 	};
 
-	if (!process.env.REACT_APP_API_KEY) {
+	if (!entry) {
 		return (
-			<div id='player'>
-				<p>Missing REACT_APP_API_KEY. Create a .env file with your YouTube Data API key.</p>
+			<div className='landing'>
+				<h1>YouTube Mini Player</h1>
+				<form onSubmit={handleSubmit}>
+					<input type='text' value={urlInput} onChange={(e) => setUrlInput(e.target.value)} placeholder='Paste a YouTube playlist or video URL...' />
+					<button type='submit'>Load</button>
+				</form>
+				{parseError && <p className='msg error'>{parseError}</p>}
+				{!process.env.REACT_APP_API_KEY && <p className='msg error'>Missing REACT_APP_API_KEY — create a .env file with your YouTube Data API key</p>}
+				<p className='hint'>Supports playlist URLs, video URLs, or raw IDs</p>
 			</div>
 		);
 	}
 
-	if (!isPlaylist) {
+	if (!entry.isPlaylist) {
 		return (
-			<div className='player'>
-				<iframe
-					width={width}
-					height={height}
-					src={`https://www.youtube.com/embed/${id}?rel=0`}
-					title='YouTube video player'
-					frameBorder='0'
-					autoPlay={true}
-					allow='accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture'
-					allowFullScreen></iframe>
+			<div id='player'>
+				<button className='close-btn' onClick={() => setEntry(null)}>×</button>
+				<iframe width={width} height={height} src={`https://www.youtube.com/embed/${entry.id}?rel=0&autoplay=1`} title='YouTube video player' frameBorder='0' allow='accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture' allowFullScreen />
 			</div>
 		);
 	}
 
 	return (
 		<div id='player'>
-			<iframe width={width} height={height} src={`https://www.youtube.com/embed/videoseries?list=${id}&index=${offset}&autoplay=1`} frameBorder='0' title='Youtube player' allow='autoplay'></iframe>
+			<button className='close-btn' onClick={() => setEntry(null)}>×</button>
+			<iframe width={width} height={height} src={`https://www.youtube.com/embed/videoseries?list=${entry.id}&index=${offset}&autoplay=1`} frameBorder='0' title='Youtube player' allow='autoplay' />
 			{loading && !data ? (
 				<div className='scroll-div' style={{width: 300, display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
 					<h4>Loading playlist...</h4>

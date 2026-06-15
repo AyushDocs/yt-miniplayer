@@ -2,6 +2,8 @@
 
 A floating YouTube mini-player that sits in the bottom-right corner of the screen. Supports single videos and playlists with an interactive sidebar.
 
+**Note:** This is a learning project — built to practice React, API integration, and state management. Not intended as a practical replacement for YouTube's own interface.
+
 ## Setup
 
 1. Clone the repo and install dependencies:
@@ -26,10 +28,13 @@ npm start
 
 ## Usage
 
-The app is pre-configured to load a Node.js tutorial playlist. To change the playlist or use a single video, edit the props in `src/index.js`:
+Paste any YouTube URL into the input field:
 
-- **Playlist mode:** `<App id="PLAYLIST_ID" isPlaylist height={500} width={700} />`
-- **Single video mode:** `<App id="VIDEO_ID" height={500} width={700} />`
+- **Playlist URL** — loads the playlist with a scrollable sidebar of video titles
+- **Video URL** — plays a single video
+- **Raw ID** — accepts a playlist ID or video ID directly
+
+Click a title in the sidebar to jump to that video. Click the × button to go back and load something else.
 
 ## Scripts
 
