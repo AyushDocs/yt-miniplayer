@@ -1,45 +1,52 @@
-/** @format */
-
 import axios from 'axios';
-import {useEffect, useRef, useState} from 'react';
+import {Fragment, useEffect, useState} from 'react';
 import InfiniteScroll from 'react-infinite-scroll-component';
 import './App.css';
 
 const App = ({id, isPlaylist, width, height}) => {
-	const [Offset, setOffset] = useState(0);
-	const [Data, setData] = useState();
-	const contentRef = useRef();
+	const [offset, setOffset] = useState(0);
+	const [data, setData] = useState(null);
+	const [loading, setLoading] = useState(false);
+	const [error, setError] = useState(null);
+
 	useEffect(() => {
-		(async () => {
-			if (!process.env.REACT_APP_API_KEY || !isPlaylist) return;
-			const res = await axios.get(` https://youtube.googleapis.com/youtube/v3/playlistItems?part=snippet%2CcontentDetails&playlistId=${id}&key=${process.env.REACT_APP_API_KEY}&maxResults=020`);
-			setData(res.data);
-		})();
-	}, [id, isPlaylist]);
-	const getMoreData = async () => {
 		if (!process.env.REACT_APP_API_KEY || !isPlaylist) return;
-		const res = await axios.get(` https://youtube.googleapis.com/youtube/v3/playlistItems?part=snippet%2CcontentDetails&playlistId=${id}&key=${process.env.REACT_APP_API_KEY}&maxResults=10&pageToken=${Data.nextPageToken}`);
-		setData({...Data, items: Data.items.concat(res.data.items)});
+		const fetchData = async () => {
+			setLoading(true);
+			setError(null);
+			try {
+				const res = await axios.get(`https://youtube.googleapis.com/youtube/v3/playlistItems?part=snippet%2CcontentDetails&playlistId=${id}&key=${process.env.REACT_APP_API_KEY}&maxResults=10`);
+				setData(res.data);
+			} catch (err) {
+				setError(err.message);
+			} finally {
+				setLoading(false);
+			}
+		};
+		fetchData();
+	}, [id, isPlaylist]);
+
+	const getMoreData = async () => {
+		if (!process.env.REACT_APP_API_KEY || !isPlaylist || !data?.nextPageToken) return;
+		try {
+			const res = await axios.get(`https://youtube.googleapis.com/youtube/v3/playlistItems?part=snippet%2CcontentDetails&playlistId=${id}&key=${process.env.REACT_APP_API_KEY}&maxResults=10&pageToken=${data.nextPageToken}`);
+			setData({...data, items: data.items.concat(res.data.items)});
+		} catch (err) {
+			setError(err.message);
+		}
 	};
-	return (
-		<div className='player'>
-			{isPlaylist ? (
-				<div id='player'>
-					<iframe width={width} height={height} src={`https://www.youtube.com/embed?listType=playlist&list=${id}&rel=0&autoplay=1&index=${Offset}`} frameBorder='0' title='Youtube player'></iframe>
-					{/* <ul className='list' style={{overflow: 'auto'}}> */}
-						<InfiniteScroll className='scroll-div' hasMore={true} next={getMoreData} dataLength={Data?.items?.length || 0} height={height} loader={<h4>Loading...</h4>}>
-							{Data?.items?.map?.((item, index) => (
-								<>
-									<span onClick={() => setOffset(index + 1)} key={index}>
-										{index+1}- {item.snippet.title.substring(0, 10)}
-									</span>
-									<hr />
-								</>
-							))}
-						</InfiniteScroll>
-					{/* </ul> */}
-				</div>
-			) : (
+
+	if (!process.env.REACT_APP_API_KEY) {
+		return (
+			<div id='player'>
+				<p>Missing REACT_APP_API_KEY. Create a .env file with your YouTube Data API key.</p>
+			</div>
+		);
+	}
+
+	if (!isPlaylist) {
+		return (
+			<div className='player'>
 				<iframe
 					width={width}
 					height={height}
@@ -49,6 +56,32 @@ const App = ({id, isPlaylist, width, height}) => {
 					autoPlay={true}
 					allow='accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture'
 					allowFullScreen></iframe>
+			</div>
+		);
+	}
+
+	return (
+		<div id='player'>
+			<iframe width={width} height={height} src={`https://www.youtube.com/embed/videoseries?list=${id}&index=${offset}&autoplay=1`} frameBorder='0' title='Youtube player' allow='autoplay'></iframe>
+			{loading && !data ? (
+				<div className='scroll-div' style={{width: 300, display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
+					<h4>Loading playlist...</h4>
+				</div>
+			) : error ? (
+				<div className='scroll-div' style={{width: 300, color: 'red', padding: '1rem'}}>
+					<h4>Error: {error}</h4>
+				</div>
+			) : (
+				<InfiniteScroll className='scroll-div' hasMore={!!data?.nextPageToken} next={getMoreData} dataLength={data?.items?.length || 0} height={height} loader={<h4>Loading more...</h4>}>
+					{data?.items?.map((item, index) => (
+						<Fragment key={index}>
+							<span className='playlist-title' onClick={() => setOffset(index + 1)}>
+								{index + 1}. {item.snippet.title}
+							</span>
+							<hr />
+						</Fragment>
+					))}
+				</InfiniteScroll>
 			)}
 		</div>
 	);
